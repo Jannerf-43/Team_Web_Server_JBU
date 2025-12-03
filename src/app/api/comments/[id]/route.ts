@@ -1,72 +1,72 @@
-// src/app/api/comments/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuth } from '@clerk/nextjs/server'
 import connectMongoDB from '@/libs/mongodb'
 import Comment from '@/models/comment'
+import { requireAuth } from '@/libs/auth'
 
 export async function PATCH(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { userId } = await getAuth(req)
-    if (!userId) {
-      return NextResponse.json(
-        { ok: false, error: '로그인 필요' },
-        { status: 401 }
-      )
-    }
-
-    const { id } = await context.params
+    const userId = await requireAuth()
+    const { id } = context.params
     const { content, contentRate, homeworkRate, examRate } = await req.json()
 
     await connectMongoDB()
+
     const comment = await Comment.findById(id)
-    if (!comment) throw new Error('댓글을 찾을 수 없습니다')
+    if (!comment) {
+      return NextResponse.json(
+        { ok: false, error: '댓글을 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
 
     if (comment.user !== userId) {
       return NextResponse.json(
-        { ok: false, error: '권한 없음' },
+        { ok: false, error: '권한이 없습니다.' },
         { status: 403 }
       )
     }
 
     comment.content = content
-    comment.contentRate = contentRate
-    comment.homeworkRate = homeworkRate
-    comment.examRate = examRate
+    comment.contentRate = Number(contentRate ?? comment.contentRate)
+    comment.homeworkRate = Number(homeworkRate ?? comment.homeworkRate)
+    comment.examRate = Number(examRate ?? comment.examRate)
 
     await comment.save()
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
+    console.error('댓글 수정 오류:', e)
+    return NextResponse.json(
+      { ok: false, error: '서버 내부 오류' },
+      { status: 500 }
+    )
   }
 }
 
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { userId } = await getAuth(req)
-    if (!userId) {
-      return NextResponse.json(
-        { ok: false, error: '로그인 필요' },
-        { status: 401 }
-      )
-    }
-
-    const { id } = await context.params
+    const userId = await requireAuth()
+    const { id } = context.params
 
     await connectMongoDB()
 
     const comment = await Comment.findById(id)
-    if (!comment) throw new Error('댓글 없음')
+    if (!comment) {
+      return NextResponse.json(
+        { ok: false, error: '댓글을 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
 
     if (comment.user !== userId) {
       return NextResponse.json(
-        { ok: false, error: '권한 없음' },
+        { ok: false, error: '권한이 없습니다.' },
         { status: 403 }
       )
     }
@@ -75,6 +75,10 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
+    console.error('댓글 삭제 오류:', e)
+    return NextResponse.json(
+      { ok: false, error: '서버 내부 오류' },
+      { status: 500 }
+    )
   }
 }

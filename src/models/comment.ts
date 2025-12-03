@@ -1,7 +1,19 @@
-// src/models/comment.ts
-import mongoose, { Schema } from 'mongoose'
+import mongoose, { Schema, Document, Model } from 'mongoose'
 
-const commentSchema = new Schema(
+export interface IComment extends Document {
+  user: string
+  course: string
+  content: string
+  contentRate: number
+  homeworkRate: number
+  examRate: number
+  likes: number
+  likedUsers: string[]
+  createdAt: Date
+  updatedAt: Date
+}
+
+const commentSchema = new Schema<IComment>(
   {
     user: { type: String, required: true },
     course: { type: String, required: true },
@@ -15,5 +27,7 @@ const commentSchema = new Schema(
   { timestamps: true }
 )
 
-export default mongoose.models.Comment ||
-  mongoose.model('Comment', commentSchema)
+const Comment: Model<IComment> =
+  mongoose.models.Comment || mongoose.model<IComment>('Comment', commentSchema)
+
+export default Comment

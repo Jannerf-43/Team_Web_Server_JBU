@@ -1,25 +1,22 @@
-// src/app/api/comments/like/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuth } from '@clerk/nextjs/server'
 import connectMongoDB from '@/libs/mongodb'
 import Comment from '@/models/comment'
+import { requireAuth } from '@/libs/auth'
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await getAuth(req)
-    if (!userId) {
-      return NextResponse.json(
-        { ok: false, error: '로그인 필요' },
-        { status: 401 }
-      )
-    }
-
+    const userId = await requireAuth()
     const { commentId } = await req.json()
 
     await connectMongoDB()
 
     const comment = await Comment.findById(commentId)
-    if (!comment) throw new Error('댓글 없음')
+    if (!comment) {
+      return NextResponse.json(
+        { ok: false, error: '댓글을 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
 
     const isLiked = comment.likedUsers.includes(userId)
 
@@ -32,10 +29,19 @@ export async function POST(req: NextRequest) {
       comment.likedUsers.push(userId)
       comment.likes += 1
     }
+
     await comment.save()
 
-    return NextResponse.json({ ok: true, likes: comment.likes })
+    return NextResponse.json({
+      ok: true,
+      likes: comment.likes,
+      liked: !isLiked,
+    })
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
+    console.error('좋아요 토글 오류:', e)
+    return NextResponse.json(
+      { ok: false, error: '서버 내부 오류' },
+      { status: 500 }
+    )
   }
 }
